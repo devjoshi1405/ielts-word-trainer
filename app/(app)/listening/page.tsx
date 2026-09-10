@@ -109,12 +109,24 @@ export default function ListeningHubPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {CATEGORY_META.map((cat) => {
             const Icon = cat.icon;
-            const count = VOCABULARY_BY_CATEGORY[cat.id]?.length || 20;
+            const count =
+              cat.id === "numbers"
+                ? 14
+                : cat.id === "dates-times"
+                ? 11
+                : VOCABULARY_BY_CATEGORY[cat.id]?.length || 20;
+
+            const targetHref =
+              cat.id === "numbers"
+                ? "/listening/numbers"
+                : cat.id === "dates-times"
+                ? "/listening/dates-times"
+                : `/listening/listen-and-type?category=${cat.id}`;
 
             return (
               <Link
                 key={cat.id}
-                href={`/listening/listen-and-type`}
+                href={targetHref}
                 className="group block"
               >
                 <Card className="hover:border-indigo-300 dark:hover:border-indigo-700 transition-all hover:shadow-xs border-slate-200/80 dark:border-slate-800">

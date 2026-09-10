@@ -11,19 +11,44 @@ import {
   Save,
   CheckCircle2,
   User,
+  Play,
+  Loader2,
+  Check,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Accent } from "@/types/exercise.types";
+import { useVoicePreference } from "@/hooks/use-voice-preference";
 
 export default function SettingsPage() {
   const [speed, setSpeed] = React.useState<number>(1.0);
-  const [accent, setAccent] = React.useState<Accent>("british");
+  const { accent, setAccent, availableAccents, testVoice, isTestingVoice } = useVoicePreference();
+  const [testingAccentId, setTestingAccentId] = React.useState<Accent | null>(null);
   const [dailyGoal, setDailyGoal] = React.useState<number>(30);
   const [targetBand, setTargetBand] = React.useState<string>("8.0");
   const [isSaved, setIsSaved] = React.useState<boolean>(false);
+
+  const handleTestAccent = async (e: React.MouseEvent, accId: Accent) => {
+    e.stopPropagation();
+    setTestingAccentId(accId);
+    try {
+      await testVoice(accId, "Schedule, laboratory, and academic research.");
+    } finally {
+      setTestingAccentId(null);
+    }
+  };
+
+  const handleSelectAccent = async (accId: Accent) => {
+    setAccent(accId);
+    setTestingAccentId(accId);
+    try {
+      await testVoice(accId, "Schedule, laboratory, and academic research.");
+    } finally {
+      setTestingAccentId(null);
+    }
+  };
 
   const handleSave = () => {
     setIsSaved(true);
@@ -61,7 +86,7 @@ export default function SettingsPage() {
             <div>
               <CardTitle>Audio & Accent Preferences</CardTitle>
               <CardDescription>
-                Configure the speech synthesis engine for Listen & Type exercises.
+                Configure the speech synthesis engine for Listen & Type exercises across the app.
               </CardDescription>
             </div>
           </div>
@@ -92,29 +117,70 @@ export default function SettingsPage() {
 
           {/* Accent Preference */}
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-              Preferred Voice Accent
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                Preferred Voice Accent
+              </label>
+              <span className="text-xs text-muted-foreground">
+                Click an accent to switch & hear live sample
+              </span>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                { id: "british" as const, name: "British (UK)", note: "Standard IELTS BBC style" },
-                { id: "american" as const, name: "American (US)", note: "General North American" },
-                { id: "australian" as const, name: "Australian (AU)", note: "Common in Section 1 & 2" },
-              ].map((acc) => (
-                <button
-                  key={acc.id}
-                  type="button"
-                  onClick={() => setAccent(acc.id)}
-                  className={`p-4 rounded-xl text-left border transition-all ${
-                    accent === acc.id
-                      ? "border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 text-slate-900 dark:text-slate-100 shadow-xs"
-                      : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  <div className="font-semibold text-sm">{acc.name}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{acc.note}</div>
-                </button>
-              ))}
+              {availableAccents.map((acc) => {
+                const isSelected = accent === acc.id;
+                const isThisTesting = isTestingVoice && testingAccentId === acc.id;
+                return (
+                  <div
+                    key={acc.id}
+                    onClick={() => handleSelectAccent(acc.id)}
+                    className={`p-4 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                      isSelected
+                        ? "border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 text-slate-900 dark:text-slate-100 shadow-xs ring-2 ring-indigo-500/20"
+                        : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{acc.flag}</span>
+                          <span className="font-semibold text-sm">{acc.name}</span>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1.5">{acc.description}</div>
+                      <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-1">
+                        Region: {acc.region}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground italic truncate">
+                        &quot;{acc.sampleWord}&quot;
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isSelected ? "brand" : "outline"}
+                        className="h-7 px-2.5 text-[11px] gap-1 shrink-0 rounded-lg"
+                        disabled={isThisTesting}
+                        onClick={(e) => handleTestAccent(e, acc.id)}
+                      >
+                        {isThisTesting ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Playing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>Test Voice</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </CardContent>

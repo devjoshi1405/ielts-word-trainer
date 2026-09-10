@@ -10,9 +10,13 @@ import { validateAnswer } from "@/lib/validation/answer-validator";
 import { audioService } from "@/lib/audio";
 import { progressManager } from "@/lib/progress";
 import { classifyMistake } from "@/lib/mistakes/mistake-classifier";
+import { useVoicePreference } from "@/hooks/use-voice-preference";
+import { exerciseService } from "@/lib/exercises/mock-exercise-service";
 
 export interface UseListenExerciseOptions {
   initialQuestions: ExerciseQuestion[];
+  category?: string;
+  initialBatchIndex?: number;
   sessionKey?: string;
   maxAttempts?: number; // default 2
   onComplete?: (score: { correct: number; total: number; accuracy: number }) => void;
@@ -21,12 +25,19 @@ export interface UseListenExerciseOptions {
 
 export function useListenExercise({
   initialQuestions,
+  category = "listen-and-type",
+  initialBatchIndex = 0,
   sessionKey,
   maxAttempts = 2,
   onComplete,
   autoPlayAudio = false,
 }: UseListenExerciseOptions) {
+  const { accent: userAccent } = useVoicePreference();
   const [questions, setQuestions] = React.useState<ExerciseQuestion[]>(initialQuestions);
+  const [batchIndex, setBatchIndex] = React.useState<number>(initialBatchIndex);
+  const [totalBatches, setTotalBatches] = React.useState<number>(50);
+  const [totalCategoryWords, setTotalCategoryWords] = React.useState<number>(1000);
+  const [isLoadingBatch, setIsLoadingBatch] = React.useState<boolean>(false);
   const [currentIndex, setCurrentIndex] = React.useState(0);
   const [userInput, setUserInput] = React.useState("");
   const [results, setResults] = React.useState<Record<number, AnswerValidationResult>>({});
@@ -37,9 +48,18 @@ export function useListenExercise({
 
   const storageKey = sessionKey ? `ielts_exercise_session_${sessionKey}` : null;
 
+  // Initialize total batch count
+  React.useEffect(() => {
+    if (category) {
+      const count = exerciseService.getTotalCount(category);
+      setTotalCategoryWords(count);
+      setTotalBatches(Math.max(1, Math.ceil(count / 20)));
+    }
+  }, [category]);
+
   // Restore saved session from storage once initial questions are loaded
   React.useEffect(() => {
-    if (!storageKey || typeof window === "undefined" || initialQuestions.length === 0) {
+    if (!storageKey || typeof window === "undefined") {
       setQuestions(initialQuestions);
       return;
     }
@@ -49,20 +69,33 @@ export function useListenExercise({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed.currentIndex === "number") {
-          const restoredIndex = Math.min(parsed.currentIndex, initialQuestions.length - 1);
+          const restoredIndex = Math.min(
+            parsed.currentIndex,
+            (parsed.savedQuestions?.length || initialQuestions.length) - 1
+          );
+          if (parsed.savedQuestions && Array.isArray(parsed.savedQuestions) && parsed.savedQuestions.length > 0) {
+            setQuestions(parsed.savedQuestions);
+          } else {
+            setQuestions(initialQuestions);
+          }
+          if (typeof parsed.batchIndex === "number") {
+            setBatchIndex(parsed.batchIndex);
+          }
           setCurrentIndex(restoredIndex >= 0 ? restoredIndex : 0);
           setResults(parsed.results || {});
           setAttemptsCount(parsed.attemptsCount || {});
           setAttemptHistory(parsed.attemptHistory || {});
-          setIsCompleted(Boolean(parsed.isCompleted && parsed.currentIndex >= initialQuestions.length - 1));
+          setIsCompleted(Boolean(parsed.isCompleted && restoredIndex >= (parsed.savedQuestions?.length || initialQuestions.length) - 1));
+          setIsSessionLoaded(true);
+          return;
         }
       }
     } catch (e) {
       console.warn("Failed to restore exercise session:", e);
-    } finally {
-      setQuestions(initialQuestions);
-      setIsSessionLoaded(true);
     }
+
+    setQuestions(initialQuestions);
+    setIsSessionLoaded(true);
   }, [storageKey, initialQuestions]);
 
   // Persist session changes to localStorage
@@ -73,7 +106,9 @@ export function useListenExercise({
       localStorage.setItem(
         storageKey,
         JSON.stringify({
+          batchIndex,
           currentIndex,
+          savedQuestions: questions,
           results,
           attemptsCount,
           attemptHistory,
@@ -84,7 +119,7 @@ export function useListenExercise({
     } catch (e) {
       console.warn("Failed to persist exercise session:", e);
     }
-  }, [storageKey, isSessionLoaded, currentIndex, results, attemptsCount, attemptHistory, isCompleted]);
+  }, [storageKey, isSessionLoaded, batchIndex, currentIndex, questions, results, attemptsCount, attemptHistory, isCompleted]);
 
   const currentQuestion = questions[currentIndex] || questions[0];
   const currentResult = results[currentIndex] || null;
@@ -95,50 +130,52 @@ export function useListenExercise({
   React.useEffect(() => {
     if (autoPlayAudio && currentQuestion && !isAnswered && !isCompleted) {
       const timer = setTimeout(() => {
-        if (currentQuestion.audioUrl) {
-          audioService.playAudioUrl(currentQuestion.audioUrl, {
-            accent: currentQuestion.accent || "british",
-            rate: 1.0,
-          });
-        } else {
-          const speakText =
-            (currentQuestion.category === "numbers" || currentQuestion.category === "dates-times") &&
-            currentQuestion.phoneticIpa &&
-            !currentQuestion.phoneticIpa.startsWith("/")
-              ? currentQuestion.phoneticIpa
-              : currentQuestion.targetText;
-          audioService.playText(speakText, {
-            accent: currentQuestion.accent || "british",
-            rate: 1.0,
-          });
-        }
-      }, 400);
-      return () => clearTimeout(timer);
-    }
-  }, [currentIndex, isCompleted, autoPlayAudio, currentQuestion, isAnswered]);
-
-  const playAudio = React.useCallback(
-    (rate = 1.0) => {
-      if (!currentQuestion) return;
-      if (currentQuestion.audioUrl) {
-        audioService.playAudioUrl(currentQuestion.audioUrl, {
-          rate,
-          accent: currentQuestion.accent || "british",
-        });
-      } else {
         const speakText =
           (currentQuestion.category === "numbers" || currentQuestion.category === "dates-times") &&
           currentQuestion.phoneticIpa &&
           !currentQuestion.phoneticIpa.startsWith("/")
             ? currentQuestion.phoneticIpa
             : currentQuestion.targetText;
-        audioService.playText(speakText, {
+
+        audioService.play(
+          {
+            url: currentQuestion.audioUrl,
+            text: speakText,
+            accent: userAccent || currentQuestion.accent || "british",
+          },
+          {
+            accent: userAccent || currentQuestion.accent || "british",
+            rate: 1.0,
+          }
+        );
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [currentIndex, isCompleted, autoPlayAudio, currentQuestion, isAnswered, userAccent]);
+
+  const playAudio = React.useCallback(
+    (rate = 1.0) => {
+      if (!currentQuestion) return;
+      const speakText =
+        (currentQuestion.category === "numbers" || currentQuestion.category === "dates-times") &&
+        currentQuestion.phoneticIpa &&
+        !currentQuestion.phoneticIpa.startsWith("/")
+          ? currentQuestion.phoneticIpa
+          : currentQuestion.targetText;
+
+      audioService.play(
+        {
+          url: currentQuestion.audioUrl,
+          text: speakText,
+          accent: userAccent || currentQuestion.accent || "british",
+        },
+        {
           rate,
-          accent: currentQuestion.accent || "british",
-        });
-      }
+          accent: userAccent || currentQuestion.accent || "british",
+        }
+      );
     },
-    [currentQuestion]
+    [currentQuestion, userAccent]
   );
 
   const playSlowAudio = React.useCallback(() => {
@@ -219,7 +256,6 @@ export function useListenExercise({
 
   const retryCurrentQuestion = React.useCallback(() => {
     setUserInput("");
-    // Remove the current result so the input re-enables for attempt #2
     setResults((prev) => {
       const copy = { ...prev };
       delete copy[currentIndex];
@@ -242,6 +278,125 @@ export function useListenExercise({
     setAttemptHistory({});
     setIsCompleted(false);
   }, [storageKey]);
+
+  /**
+   * Loads the next sequential 20-word batch from the 1,000+ vocabulary pool
+   */
+  const loadNextBatch = React.useCallback(async () => {
+    setIsLoadingBatch(true);
+    try {
+      const nextBatch = batchIndex + 1;
+      const batchData = await exerciseService.getBatchInfo(category || "listen-and-type", nextBatch, 20);
+
+      setQuestions(batchData.questions);
+      setBatchIndex(batchData.batchIndex);
+      setTotalBatches(batchData.totalBatches);
+      setCurrentIndex(0);
+      setUserInput("");
+      setResults({});
+      setAttemptsCount({});
+      setAttemptHistory({});
+      setIsCompleted(false);
+
+      if (storageKey && typeof window !== "undefined") {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            batchIndex: batchData.batchIndex,
+            currentIndex: 0,
+            savedQuestions: batchData.questions,
+            results: {},
+            attemptsCount: {},
+            attemptHistory: {},
+            isCompleted: false,
+            updatedAt: Date.now(),
+          })
+        );
+      }
+    } finally {
+      setIsLoadingBatch(false);
+    }
+  }, [batchIndex, category, storageKey]);
+
+  /**
+   * Loads a random 20-word batch from the library
+   */
+  const loadRandomBatch = React.useCallback(async () => {
+    setIsLoadingBatch(true);
+    try {
+      const randomQuestions = await exerciseService.getQuestionsByCategory(
+        category || "listen-and-type",
+        20,
+        0,
+        true
+      );
+
+      const randomBatchIndex = Math.floor(Math.random() * totalBatches);
+      setQuestions(randomQuestions);
+      setBatchIndex(randomBatchIndex);
+      setCurrentIndex(0);
+      setUserInput("");
+      setResults({});
+      setAttemptsCount({});
+      setAttemptHistory({});
+      setIsCompleted(false);
+
+      if (storageKey && typeof window !== "undefined") {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            batchIndex: randomBatchIndex,
+            currentIndex: 0,
+            savedQuestions: randomQuestions,
+            results: {},
+            attemptsCount: {},
+            attemptHistory: {},
+            isCompleted: false,
+            updatedAt: Date.now(),
+          })
+        );
+      }
+    } finally {
+      setIsLoadingBatch(false);
+    }
+  }, [category, totalBatches, storageKey]);
+
+  /**
+   * Loads a specific batch by index
+   */
+  const loadBatch = React.useCallback(async (targetBatchIndex: number) => {
+    setIsLoadingBatch(true);
+    try {
+      const batchData = await exerciseService.getBatchInfo(category || "listen-and-type", targetBatchIndex, 20);
+
+      setQuestions(batchData.questions);
+      setBatchIndex(batchData.batchIndex);
+      setCurrentIndex(0);
+      setUserInput("");
+      setResults({});
+      setAttemptsCount({});
+      setAttemptHistory({});
+      setIsCompleted(false);
+
+      if (storageKey && typeof window !== "undefined") {
+        localStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            batchIndex: batchData.batchIndex,
+            currentIndex: 0,
+            savedQuestions: batchData.questions,
+            results: {},
+            attemptsCount: {},
+            attemptHistory: {},
+            isCompleted: false,
+            updatedAt: Date.now(),
+          })
+        );
+      }
+    } finally {
+      setIsLoadingBatch(false);
+    }
+  }, [category, storageKey]);
 
   const score = React.useMemo(() => {
     const list = Object.values(results);
@@ -277,6 +432,13 @@ export function useListenExercise({
     playSlowAudio,
     totalQuestions: questions.length,
     hasNextQuestion: currentIndex < questions.length - 1,
+    // Batch controls & info
+    batchIndex,
+    totalBatches,
+    totalCategoryWords,
+    isLoadingBatch,
+    loadNextBatch,
+    loadRandomBatch,
+    loadBatch,
   };
 }
-

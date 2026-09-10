@@ -18,7 +18,9 @@ import { Badge } from "@/components/ui/badge";
 import { useAudioPlayer, formatAudioTime } from "@/hooks/use-audio-player";
 import { audioService } from "@/lib/audio";
 import { Accent } from "@/types/exercise.types";
+import { useVoicePreference } from "@/hooks/use-voice-preference";
 import { cn } from "@/lib/utils";
+import { Check, ChevronDown } from "lucide-react";
 
 export type AudioSpeed = 0.5 | 0.75 | 1.0;
 
@@ -37,7 +39,7 @@ interface AudioPlayerProps {
 export function AudioPlayer({
   textToSpeak,
   audioUrl,
-  accent = "british",
+  accent: propAccent,
   autoPlay = false,
   onPlayStart,
   onPlayEnd,
@@ -45,6 +47,10 @@ export function AudioPlayer({
   exerciseType = "WORD",
   showSeeker = true,
 }: AudioPlayerProps) {
+  const { accent: globalAccent, setAccent, availableAccents } = useVoicePreference();
+  const effectiveAccent = propAccent || globalAccent;
+  const [accentMenuOpen, setAccentMenuOpen] = React.useState(false);
+
   const {
     state,
     isPlaying,
@@ -71,23 +77,16 @@ export function AudioPlayer({
 
   // Proactively preload audio buffer in background so play is instantaneous on click
   React.useEffect(() => {
-    if (textToSpeak && !audioUrl) {
-      audioService.preload(textToSpeak, accent);
+    if (textToSpeak) {
+      audioService.preload(textToSpeak, effectiveAccent);
     }
-  }, [textToSpeak, audioUrl, accent]);
+  }, [textToSpeak, effectiveAccent]);
 
-  const accentLabel = React.useMemo(() => {
-    switch (accent) {
-      case "british":
-        return "🇬🇧 British Audio (HQ)";
-      case "american":
-        return "🇺🇸 American Audio (HQ)";
-      case "australian":
-        return "🇦🇺 Australian Audio (HQ)";
-      default:
-        return "🇬🇧 British Audio (HQ)";
-    }
-  }, [accent]);
+  const currentAccentOption = React.useMemo(() => {
+    return availableAccents.find((a) => a.id === effectiveAccent) || availableAccents[0];
+  }, [availableAccents, effectiveAccent]);
+
+  const accentLabel = `${currentAccentOption.flag} ${currentAccentOption.name}`;
 
   const handlePlayToggle = React.useCallback(async () => {
     if (isPlaying) {
@@ -105,13 +104,13 @@ export function AudioPlayer({
 
     try {
       await play(
-        { url: audioUrl, text: textToSpeak, accent },
-        { rate: playbackRate, volume }
+        { url: audioUrl, text: textToSpeak, accent: effectiveAccent },
+        { rate: playbackRate, volume, accent: effectiveAccent }
       );
     } finally {
       onPlayEnd?.();
     }
-  }, [isPlaying, state.isPaused, pause, resume, play, audioUrl, textToSpeak, accent, playbackRate, volume, onPlayStart, onPlayEnd]);
+  }, [isPlaying, state.isPaused, pause, resume, play, audioUrl, textToSpeak, effectiveAccent, playbackRate, volume, onPlayStart, onPlayEnd]);
 
   const handleSlowAudio = React.useCallback(async () => {
     setPlaybackRate(0.75);
@@ -119,13 +118,13 @@ export function AudioPlayer({
     onPlayStart?.();
     try {
       await play(
-        { url: audioUrl, text: textToSpeak, accent },
-        { rate: 0.75, volume }
+        { url: audioUrl, text: textToSpeak, accent: effectiveAccent },
+        { rate: 0.75, volume, accent: effectiveAccent }
       );
     } finally {
       onPlayEnd?.();
     }
-  }, [setPlaybackRate, play, audioUrl, textToSpeak, accent, volume, onPlayStart, onPlayEnd]);
+  }, [setPlaybackRate, play, audioUrl, textToSpeak, effectiveAccent, volume, onPlayStart, onPlayEnd]);
 
   const handleReplay = React.useCallback(async () => {
     setPlayCount((prev) => prev + 1);
@@ -151,6 +150,17 @@ export function AudioPlayer({
     setVolume(v);
   };
 
+  const handleAccentSelect = async (newAccent: Accent) => {
+    setAccent(newAccent);
+    setAccentMenuOpen(false);
+    if (isPlaying || state.isPaused) {
+      await play(
+        { url: audioUrl, text: textToSpeak, accent: newAccent },
+        { rate: playbackRate, volume, accent: newAccent }
+      );
+    }
+  };
+
   // Autoplay on question change if enabled
   React.useEffect(() => {
     setPlayCount(0);
@@ -164,31 +174,65 @@ export function AudioPlayer({
 
   return (
     <div className="w-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 p-6 sm:p-8 flex flex-col items-center justify-center space-y-5 transition-all shadow-xs">
-      {/* Top Status Bar */}
+      {/* Top Status Bar with Interactive Accent Switcher */}
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center space-x-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           <Headphones className="w-4 h-4 text-indigo-600" />
           <span>IELTS Audio Stream</span>
         </div>
 
-        <div className="flex items-center space-x-2">
-          {sourceType === "file" && (
-            <Badge variant="success" className="text-[10px] font-mono gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Studio Audio Stream
-            </Badge>
-          )}
-          {sourceType === "tts" && (
-            <Badge variant="indigo" className="text-[10px] font-medium gap-1">
+        <div className="relative flex items-center space-x-2">
+          {/* In-Player Accent Switcher Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setAccentMenuOpen(!accentMenuOpen)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80 transition-all shadow-xs cursor-pointer"
+              title="Click to switch accent"
+            >
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-              {accentLabel}
-            </Badge>
-          )}
-          {sourceType === "none" && (
-            <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground">
-              {accentLabel}
-            </Badge>
-          )}
+              <span>{accentLabel}</span>
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </button>
+
+            {accentMenuOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setAccentMenuOpen(false)}
+                />
+                <div className="absolute right-0 mt-1.5 w-52 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-1.5 z-50 text-xs animate-in fade-in-50 zoom-in-95">
+                  <div className="px-2.5 py-1 text-[10px] font-bold uppercase text-muted-foreground border-b border-slate-100 dark:border-slate-800">
+                    Switch Voice Accent
+                  </div>
+                  <div className="space-y-0.5 mt-1">
+                    {availableAccents.map((acc) => {
+                      const isSelected = acc.id === effectiveAccent;
+                      return (
+                        <button
+                          key={acc.id}
+                          type="button"
+                          onClick={() => handleAccentSelect(acc.id)}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-left transition-colors ${
+                            isSelected
+                              ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold"
+                              : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          <span className="flex items-center gap-2">
+                            <span className="text-sm">{acc.flag}</span>
+                            <span>{acc.name}</span>
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
           {error && (
             <Badge variant="destructive" className="text-[10px] gap-1">
               <AlertCircle className="w-3 h-3" />

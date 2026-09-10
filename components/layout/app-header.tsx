@@ -14,11 +14,15 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { useVoicePreference } from "@/hooks/use-voice-preference";
+import { Check, ChevronDown, Play, Loader2 } from "lucide-react";
 
 export function AppHeader() {
   const pathname = usePathname();
   const { user, profile, signOut } = useAuth();
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
+  const [accentDropdownOpen, setAccentDropdownOpen] = React.useState(false);
+  const { accent, setAccent, accentOption, availableAccents, testVoice, isTestingVoice } = useVoicePreference();
 
   const getBreadcrumbs = () => {
     const parts = pathname.split("/").filter(Boolean);
@@ -80,9 +84,85 @@ export function AppHeader() {
 
       {/* Quick Actions & Auth Indicators */}
       <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300">
-          <Volume2 className="w-3.5 h-3.5 text-indigo-600" />
-          <span>British Accent (UK)</span>
+        {/* Interactive Voice Accent Selector */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setAccentDropdownOpen(!accentDropdownOpen)}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/80 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300 transition-colors border border-transparent hover:border-slate-300 dark:hover:border-slate-600 shadow-xs"
+            title="Change voice accent"
+            id="header-accent-switcher"
+          >
+            <span className="text-sm">{accentOption.flag}</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200">{accentOption.name}</span>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
+
+          {accentDropdownOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setAccentDropdownOpen(false)}
+              />
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-2 z-50 text-xs animate-in fade-in-50 zoom-in-95">
+                <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <span className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Speech Accent
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => testVoice(accent)}
+                    disabled={isTestingVoice}
+                    className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+                  >
+                    {isTestingVoice ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        <span>Testing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Test Voice</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="space-y-1 mt-1">
+                  {availableAccents.map((acc) => {
+                    const isSelected = acc.id === accent;
+                    return (
+                      <div
+                        key={acc.id}
+                        className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all ${
+                          isSelected
+                            ? "bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-900 dark:text-indigo-100 font-semibold"
+                            : "hover:bg-slate-100 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300"
+                        }`}
+                        onClick={() => {
+                          setAccent(acc.id);
+                          setAccentDropdownOpen(false);
+                          testVoice(acc.id);
+                        }}
+                      >
+                        <div className="flex items-center space-x-2.5">
+                          <span className="text-base">{acc.flag}</span>
+                          <div>
+                            <p className="text-xs">{acc.name}</p>
+                            <p className="text-[10px] text-muted-foreground font-normal">
+                              {acc.region}
+                            </p>
+                          </div>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         <Link href="/listening/listen-and-type">

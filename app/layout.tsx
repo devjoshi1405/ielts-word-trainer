@@ -24,6 +24,7 @@ export const metadata: Metadata = {
 };
 
 import { AuthProvider } from "@/hooks/use-auth";
+import { VoicePreferenceProvider } from "@/hooks/use-voice-preference";
 
 export default function RootLayout({
   children,
@@ -33,8 +34,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased selection:bg-indigo-100 selection:text-indigo-900">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <VoicePreferenceProvider>{children}</VoicePreferenceProvider>
+        </AuthProvider>
       </body>
     </html>
   );
 }
+

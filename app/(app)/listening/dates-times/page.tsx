@@ -2,7 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarClock } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarClock,
+  RotateCcw,
+  Sparkles,
+  ArrowRight,
+  Shuffle,
+  Loader2,
+  Trophy,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +29,7 @@ export default function DatesTimesPracticePage() {
 
   React.useEffect(() => {
     async function load() {
-      const q = await exerciseService.getQuestionsByCategory("dates-times", 20);
+      const q = await exerciseService.getQuestionsByCategory("dates-times", 20, 0);
       setInitialQuestions(q);
       setLoading(false);
     }
@@ -44,8 +53,15 @@ export default function DatesTimesPracticePage() {
     playAudio,
     playSlowAudio,
     hasNextQuestion,
+    batchIndex,
+    totalBatches,
+    totalCategoryWords,
+    isLoadingBatch,
+    loadNextBatch,
+    loadRandomBatch,
   } = useListenExercise({
     initialQuestions,
+    category: "dates-times",
     sessionKey: "dates-times",
     maxAttempts: 2,
     autoPlayAudio: false,
@@ -60,6 +76,9 @@ export default function DatesTimesPracticePage() {
     );
   }
 
+  const currentSetNum = batchIndex + 1;
+  const nextSetNum = ((batchIndex + 1) % totalBatches) + 1;
+
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in-50 duration-300">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -70,7 +89,15 @@ export default function DatesTimesPracticePage() {
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Modules</span>
         </Link>
-        <Badge variant="indigo">Schedules & Calendar Notation</Badge>
+        <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px] border border-indigo-100 dark:border-indigo-900">
+            <Sparkles className="w-3 h-3 text-indigo-500" />
+            <span>
+              Set {currentSetNum} of {totalBatches} ({totalCategoryWords} Items)
+            </span>
+          </div>
+          <Badge variant="indigo">Schedules & Calendar Notation</Badge>
+        </div>
       </div>
 
       {!isCompleted ? (
@@ -86,7 +113,6 @@ export default function DatesTimesPracticePage() {
             <AudioPlayer
               textToSpeak={currentQuestion?.phoneticIpa || currentQuestion?.targetText || "14th October"}
               audioUrl={currentQuestion?.audioUrl}
-              accent={currentQuestion?.accent || "british"}
             />
 
             <AnswerInput
@@ -112,18 +138,92 @@ export default function DatesTimesPracticePage() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="text-center p-8 sm:p-12 space-y-6 border-indigo-100 dark:border-indigo-950 shadow-elevated">
-          <Badge variant="success">Dates & Times Completed</Badge>
-          <h2 className="text-2xl font-bold">Schedule Formats Mastered</h2>
-          <p className="text-sm text-muted-foreground">
-            Accuracy: <strong>{score.accuracyPercent}%</strong> ({score.correct}/{score.total} correct)
-          </p>
-          <div className="flex justify-center gap-3">
-            <Button variant="outline" onClick={restartSession}>
-              Practice Again
+        <Card className="text-center p-8 sm:p-12 space-y-6 border-indigo-100 dark:border-indigo-950 shadow-elevated bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
+          <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center mx-auto shadow-sm">
+            <Trophy className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <Badge variant="success" className="px-3 py-1">
+              Set {currentSetNum} Completed!
+            </Badge>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">
+              Schedule Formats Mastered
+            </h2>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Accuracy: <strong>{score.accuracyPercent}%</strong> ({score.correct}/{score.total} correct). Ready to practice the next set of schedules & dates?
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 max-w-md mx-auto bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700">
+            <div>
+              <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+                {questions.length}
+              </div>
+              <div className="text-xs text-muted-foreground">Items Tested</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-emerald-600">
+                {score.correct}
+              </div>
+              <div className="text-xs text-muted-foreground">Correct</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-indigo-600">
+                {score.accuracyPercent}%
+              </div>
+              <div className="text-xs text-muted-foreground">Accuracy</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 pt-4">
+            <Button
+              type="button"
+              onClick={loadNextBatch}
+              disabled={isLoadingBatch}
+              variant="brand"
+              size="lg"
+              className="w-full sm:w-auto gap-2 shadow-lg shadow-indigo-200 dark:shadow-none bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-semibold"
+            >
+              {isLoadingBatch ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading New Items...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
+                  <span>Practice Next 20 Items (Set {nextSetNum})</span>
+                  <ArrowRight className="w-4 h-4 ml-0.5" />
+                </>
+              )}
             </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={restartSession}
+              className="w-full sm:w-auto gap-2 bg-white dark:bg-slate-800"
+            >
+              <RotateCcw className="w-4 h-4 text-slate-500" />
+              <span>Review This Set</span>
+            </Button>
+
+            <Button
+              type="button"
+              onClick={loadRandomBatch}
+              disabled={isLoadingBatch}
+              variant="secondary"
+              size="lg"
+              className="w-full sm:w-auto gap-2"
+            >
+              <Shuffle className="w-4 h-4 text-indigo-600" />
+              <span>Random 20 Items</span>
+            </Button>
+
             <Link href="/listening">
-              <Button variant="brand">Next Module</Button>
+              <Button variant="ghost" size="lg">Next Module</Button>
             </Link>
           </div>
         </Card>

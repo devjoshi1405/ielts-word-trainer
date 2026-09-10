@@ -162,23 +162,75 @@ export class ProductionAudioService implements IAudioService {
     if (!voices || voices.length === 0) return null;
 
     const targetLang = this.getLangCode(accent).toLowerCase().replace("_", "-");
-    const hqKeywords = ["natural", "online", "google", "premium", "enhanced", "libby", "george", "oliver", "daniel", "siri", "samantha", "karen", "serena", "arthur", "hazel", "sonia", "ryan"];
+    const hqKeywords = [
+      "natural", "online", "google", "premium", "enhanced",
+      "libby", "george", "oliver", "daniel", "siri", "samantha",
+      "karen", "serena", "arthur", "hazel", "sonia", "ryan",
+      "david", "zira", "jenny", "guy", "aria", "alex", "tom"
+    ];
 
+    // 1. Exact match on targetLang with high quality keyword
     const exactHq = voices.find((v) => {
       const vLang = v.lang.toLowerCase().replace("_", "-");
       const vName = v.name.toLowerCase();
-      return vLang === targetLang && hqKeywords.some((kw) => vName.includes(kw));
+      return (vLang === targetLang || vLang.startsWith(targetLang)) && hqKeywords.some((kw) => vName.includes(kw));
     });
     if (exactHq) return exactHq;
 
-    const exactLang = voices.find((v) => v.lang.toLowerCase().replace("_", "-") === targetLang);
+    // 2. Exact match on targetLang code (e.g. en-US, en-GB, en-AU)
+    const exactLang = voices.find((v) => {
+      const vLang = v.lang.toLowerCase().replace("_", "-");
+      return vLang === targetLang || vLang.startsWith(targetLang);
+    });
     if (exactLang) return exactLang;
 
+    // 3. Name & region match for the requested accent
     const nameMatch = voices.find((v) => {
       const name = v.name.toLowerCase();
-      if (accent === "british" && (name.includes("uk") || name.includes("british") || name.includes("great britain"))) return true;
-      if (accent === "american" && (name.includes("us") || name.includes("united states") || name.includes("american"))) return true;
-      if (accent === "australian" && (name.includes("australia") || name.includes("australian"))) return true;
+      const vLang = v.lang.toLowerCase().replace("_", "-");
+      if (accent === "british") {
+        return (
+          vLang === "en-gb" ||
+          name.includes("uk") ||
+          name.includes("british") ||
+          name.includes("great britain") ||
+          name.includes("united kingdom") ||
+          name.includes("george") ||
+          name.includes("hazel") ||
+          name.includes("susan") ||
+          name.includes("oliver") ||
+          name.includes("daniel") ||
+          name.includes("serena")
+        );
+      }
+      if (accent === "american") {
+        return (
+          vLang === "en-us" ||
+          name.includes("us") ||
+          name.includes("united states") ||
+          name.includes("american") ||
+          name.includes("david") ||
+          name.includes("zira") ||
+          name.includes("jenny") ||
+          name.includes("guy") ||
+          name.includes("aria") ||
+          name.includes("samantha") ||
+          name.includes("alex") ||
+          name.includes("tom")
+        );
+      }
+      if (accent === "australian") {
+        return (
+          vLang === "en-au" ||
+          name.includes("australia") ||
+          name.includes("australian") ||
+          name.includes("karen") ||
+          name.includes("lee") ||
+          name.includes("russell") ||
+          name.includes("nicole") ||
+          name.includes("catherine")
+        );
+      }
       return false;
     });
     if (nameMatch) return nameMatch;
@@ -187,22 +239,29 @@ export class ProductionAudioService implements IAudioService {
     return anyEnglish || voices[0] || null;
   }
 
-  async playAudioUrl(url: string, options: IAudioPlaybackOptions = {}): Promise<void> {
+  async playAudioUrl(
+    url: string,
+    options: IAudioPlaybackOptions & { isTts?: boolean; text?: string } = {}
+  ): Promise<void> {
     if (typeof window === "undefined") return;
 
     this.stop();
     this.initAudioElement();
     if (!this.audioElement) return;
 
-    this.lastSource = { url };
+    const isTts = options.isTts ?? false;
+    this.lastSource = isTts
+      ? { text: options.text || this.state.currentText, accent: options.accent }
+      : { url };
     this.lastOptions = options;
 
     const rate = options.rate ?? this.state.playbackRate ?? 1.0;
     const vol = options.volume ?? this.state.volume ?? 1.0;
 
     this.updateState({
-      sourceType: "file",
+      sourceType: isTts ? "tts" : "file",
       currentUrl: url,
+      currentText: options.text || (isTts ? this.state.currentText : undefined),
       playbackRate: rate,
       volume: vol,
       isLoading: true,
@@ -282,7 +341,7 @@ export class ProductionAudioService implements IAudioService {
     const vol = options.volume ?? this.state.volume ?? 1.0;
 
     this.lastSource = { text: cleanText, accent };
-    this.lastOptions = options;
+    this.lastOptions = { ...options, accent };
 
     const ttsUrl = `/api/tts?text=${encodeURIComponent(cleanText)}&accent=${accent}`;
 
@@ -299,16 +358,16 @@ export class ProductionAudioService implements IAudioService {
     });
 
     try {
-      // Attempt server TTS with 2.5s loading timeout before fallback
+      // Attempt server TTS with 3.5s loading timeout before fallback
       await Promise.race([
-        this.playAudioUrl(ttsUrl, { ...options, rate }),
+        this.playAudioUrl(ttsUrl, { ...options, rate, isTts: true, text: cleanText, accent }),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("TTS stream timeout")), 3000)
+          setTimeout(() => reject(new Error("TTS stream timeout")), 3500)
         ),
       ]);
     } catch (err) {
       console.warn("[AudioService] Server TTS unavailable or timed out. Falling back to browser SpeechSynthesis.", err);
-      await this.playTextViaSpeechSynthesis(cleanText, options);
+      await this.playTextViaSpeechSynthesis(cleanText, { ...options, accent });
     }
   }
 
@@ -414,9 +473,19 @@ export class ProductionAudioService implements IAudioService {
     source: { url?: string; text?: string; accent?: Accent },
     options: IAudioPlaybackOptions = {}
   ): Promise<void> {
+    const accent = options.accent || source.accent || "british";
+
+    // If accent is American or Australian (or explicitly non-British) and text is available,
+    // synthesize it via TTS so the user hears authentic American or Australian pronunciation
+    // instead of a static British pre-recorded MP3.
+    if (accent !== "british" && source.text && source.text.trim() !== "") {
+      await this.playText(source.text, { ...options, accent });
+      return;
+    }
+
     if (source.url && source.url.trim() !== "") {
       try {
-        await this.playAudioUrl(source.url, options);
+        await this.playAudioUrl(source.url, { ...options, accent });
         return;
       } catch (err) {
         console.warn(`[AudioService] Pre-recorded audio at '${source.url}' unavailable. Falling back to speech engine.`);
@@ -424,7 +493,7 @@ export class ProductionAudioService implements IAudioService {
     }
 
     if (source.text) {
-      await this.playText(source.text, { ...options, accent: source.accent });
+      await this.playText(source.text, { ...options, accent });
     }
   }
 

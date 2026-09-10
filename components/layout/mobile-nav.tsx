@@ -14,9 +14,6 @@ import {
   Binary,
   CalendarClock,
   AlertTriangle,
-  BookMarked,
-  PenTool,
-  Mic,
   Flame,
   Sparkles,
   ChevronRight,
@@ -241,46 +238,6 @@ export function MobileNav() {
                     <Badge variant="destructive" className="text-[9px] py-0 px-1.5">
                       7
                     </Badge>
-                  </Link>
-                </div>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">
-                  Other Modules
-                </div>
-                <div className="space-y-0.5">
-                  <Link
-                    href="/reading"
-                    className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400"
-                  >
-                    <div className="flex items-center space-x-2.5">
-                      <BookMarked className="w-4 h-4 text-slate-400" />
-                      <span>Reading</span>
-                    </div>
-                    <Badge variant="neutral" className="text-[9px] py-0 px-1.5">Soon</Badge>
-                  </Link>
-
-                  <Link
-                    href="/writing"
-                    className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400"
-                  >
-                    <div className="flex items-center space-x-2.5">
-                      <PenTool className="w-4 h-4 text-slate-400" />
-                      <span>Writing</span>
-                    </div>
-                    <Badge variant="neutral" className="text-[9px] py-0 px-1.5">Soon</Badge>
-                  </Link>
-
-                  <Link
-                    href="/speaking"
-                    className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-400"
-                  >
-                    <div className="flex items-center space-x-2.5">
-                      <Mic className="w-4 h-4 text-slate-400" />
-                      <span>Speaking</span>
-                    </div>
-                    <Badge variant="neutral" className="text-[9px] py-0 px-1.5">Soon</Badge>
                   </Link>
                 </div>
               </div>

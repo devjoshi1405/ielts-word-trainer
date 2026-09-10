@@ -11,6 +11,9 @@ import {
   Trophy,
   ArrowLeft,
   Volume2,
+  Shuffle,
+  Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { QuestionProgress } from "@/components/listening/question-progress";
 import { AudioPlayer } from "@/components/listening/audio-player";
@@ -23,6 +26,24 @@ import { useListenExercise } from "@/hooks/use-listen-exercise";
 import { exerciseService } from "@/lib/exercises/mock-exercise-service";
 import { progressManager } from "@/lib/progress";
 import { ExerciseQuestion } from "@/types/exercise.types";
+
+const CATEGORY_LABELS: Record<string, string> = {
+  academic: "Academic & University",
+  accommodation: "Accommodation & Housing",
+  environment: "Environment & Ecology",
+  transport: "Transport & Travel",
+  work: "Work & Employment",
+  health: "Health & Medicine",
+  technology: "Technology & Science",
+  society: "Society & Culture",
+  shopping: "Shopping & Commerce",
+  services: "Services & Facilities",
+  articles: "Articles & Prepositions",
+  numbers: "Numbers & Dates",
+  "dates-times": "Dates & Times",
+  "listen-and-type": "Listen & Type Core",
+  vocabulary: "Academic Vocabulary",
+};
 
 function ListenAndTypeExerciseContent() {
   const searchParams = useSearchParams();
@@ -62,10 +83,11 @@ function ListenAndTypeExerciseContent() {
         }
       }
 
-      // Mode 2: Standard Category Questions
+      // Mode 2: Standard Category Questions from 1,000+ vocabulary pool
       const questions = await exerciseService.getQuestionsByCategory(
         categoryParam || "listen-and-type",
-        20
+        20,
+        0
       );
 
       // If focus word specified (e.g. from mistake card Practice button)
@@ -111,8 +133,6 @@ function ListenAndTypeExerciseContent() {
     currentIndex,
     currentQuestion,
     currentResult,
-    currentAttempts,
-    maxAttempts,
     userInput,
     setUserInput,
     isAnswered,
@@ -125,8 +145,15 @@ function ListenAndTypeExerciseContent() {
     playAudio,
     playSlowAudio,
     hasNextQuestion,
+    batchIndex,
+    totalBatches,
+    totalCategoryWords,
+    isLoadingBatch,
+    loadNextBatch,
+    loadRandomBatch,
   } = useListenExercise({
     initialQuestions,
+    category: categoryParam || "listen-and-type",
     sessionKey: modeParam === "mistakes"
       ? "mistakes-review-queue"
       : focusWord
@@ -148,6 +175,8 @@ function ListenAndTypeExerciseContent() {
   }
 
   const isMistakesMode = modeParam === "mistakes";
+  const currentSetNum = batchIndex + 1;
+  const nextSetNum = ((batchIndex + 1) % totalBatches) + 1;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in-50 duration-300">
@@ -160,41 +189,56 @@ function ListenAndTypeExerciseContent() {
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>{isMistakesMode ? "Back to My Mistakes" : "Back to Modules"}</span>
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {!isMistakesMode && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-semibold text-[11px] border border-indigo-100 dark:border-indigo-900">
+              <Sparkles className="w-3 h-3 text-indigo-500" />
+              <span>
+                Set {currentSetNum} of {totalBatches} ({totalCategoryWords} Words)
+              </span>
+            </div>
+          )}
           {isMistakesMode && (
             <Badge variant="warning" className="text-[10px]">
               SRS Mistakes Queue
             </Badge>
           )}
-          <span>Session Accuracy:</span>
-          <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-            {score.answered > 0 ? `${score.accuracyPercent}%` : "100%"}
-          </span>
+          <div className="hidden sm:flex items-center gap-1 text-[11px]">
+            <span>Accuracy:</span>
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+              {score.answered > 0 ? `${score.accuracyPercent}%` : "100%"}
+            </span>
+          </div>
         </div>
       </div>
 
       {!isCompleted ? (
         <Card className="border-slate-200/90 dark:border-slate-800 shadow-card">
           <CardContent className="p-6 sm:p-10 space-y-8">
-            {/* Header: IELTS LISTENING, Question X of 20, Progress bar */}
-            <QuestionProgress
-              current={currentIndex + 1}
-              total={questions.length}
-              categoryTitle={
-                isMistakesMode
-                  ? "MISTAKE REVIEW QUEUE"
-                  : currentQuestion.category
-                  ? `${currentQuestion.category.toUpperCase()}`
-                  : "Listen & Type"
-              }
-              difficulty={currentQuestion.difficulty || "Intermediate"}
-            />
+            {/* Header: IELTS LISTENING, Question X of 20, Progress bar + Quick New Batch button */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <QuestionProgress
+                  current={currentIndex + 1}
+                  total={questions.length}
+                  categoryTitle={
+                    isMistakesMode
+                      ? "MISTAKE REVIEW QUEUE"
+                      : categoryParam && CATEGORY_LABELS[categoryParam.toLowerCase()]
+                      ? CATEGORY_LABELS[categoryParam.toLowerCase()].toUpperCase()
+                      : currentQuestion.category
+                      ? `${currentQuestion.category.toUpperCase()}`
+                      : "Listen & Type"
+                  }
+                  difficulty={currentQuestion.difficulty || "Intermediate"}
+                />
+              </div>
+            </div>
 
             {/* Audio Player Component */}
             <AudioPlayer
               textToSpeak={currentQuestion.targetText || "accommodation"}
               audioUrl={currentQuestion.audioUrl}
-              accent={currentQuestion.accent || "british"}
             />
 
             {/* Answer Input Component */}
@@ -222,7 +266,7 @@ function ListenAndTypeExerciseContent() {
           </CardContent>
         </Card>
       ) : (
-        /* Session Completed Results Card */
+        /* Session Completed Results Card with Next 20 New Words */
         <Card className="border-indigo-100 dark:border-indigo-950 shadow-elevated bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 text-center p-8 sm:p-12 space-y-6">
           <div className="w-16 h-16 rounded-3xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600 flex items-center justify-center mx-auto shadow-sm">
             <Trophy className="w-8 h-8" />
@@ -230,13 +274,15 @@ function ListenAndTypeExerciseContent() {
 
           <div className="space-y-2">
             <Badge variant="indigo" className="px-3 py-1">
-              {isMistakesMode ? "Mistake Review Complete!" : "Session Complete!"}
+              {isMistakesMode
+                ? "Mistake Review Complete!"
+                : `Set ${currentSetNum} of ${totalBatches} Completed!`}
             </Badge>
             <h2 className="text-3xl font-extrabold text-slate-900 dark:text-slate-100">
               Great Practice Session
             </h2>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              You&apos;ve completed all {questions.length} questions in this practice set. Mastery levels have been updated!
+              You&apos;ve completed this set of {questions.length} words! Ready to learn the next batch of new IELTS vocabulary?
             </p>
           </div>
 
@@ -245,7 +291,7 @@ function ListenAndTypeExerciseContent() {
               <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {questions.length}
               </div>
-              <div className="text-xs text-muted-foreground">Questions</div>
+              <div className="text-xs text-muted-foreground">Words Tested</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-emerald-600">
@@ -261,25 +307,66 @@ function ListenAndTypeExerciseContent() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
+          {/* Action Buttons: Practice Next 20 New Words (Primary), Review Set, Random Set, Dashboard */}
+          <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-3 pt-4">
+            {!isMistakesMode && (
+              <Button
+                type="button"
+                onClick={loadNextBatch}
+                disabled={isLoadingBatch}
+                variant="brand"
+                size="lg"
+                className="w-full sm:w-auto gap-2 shadow-lg shadow-indigo-200 dark:shadow-none bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-semibold"
+                id="next-words-btn"
+              >
+                {isLoadingBatch ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Loading New Words...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300" />
+                    <span>Practice Next 20 New Words (Set {nextSetNum})</span>
+                    <ArrowRight className="w-4 h-4 ml-0.5" />
+                  </>
+                )}
+              </Button>
+            )}
+
             <Button
               type="button"
               onClick={restartSession}
               variant="outline"
               size="lg"
-              className="w-full sm:w-auto gap-2"
+              className="w-full sm:w-auto gap-2 bg-white dark:bg-slate-800"
             >
-              <RotateCcw className="w-4 h-4" />
-              <span>Practice Again</span>
+              <RotateCcw className="w-4 h-4 text-slate-500" />
+              <span>Review This Set Again</span>
             </Button>
+
+            {!isMistakesMode && (
+              <Button
+                type="button"
+                onClick={loadRandomBatch}
+                disabled={isLoadingBatch}
+                variant="secondary"
+                size="lg"
+                className="w-full sm:w-auto gap-2"
+                title="Practice 20 randomized words from the 1,000+ library"
+              >
+                <Shuffle className="w-4 h-4 text-indigo-600" />
+                <span>Random 20 Words</span>
+              </Button>
+            )}
+
             <Link href={isMistakesMode ? "/listening/mistakes" : "/dashboard"} className="w-full sm:w-auto">
               <Button
-                variant="brand"
+                variant="ghost"
                 size="lg"
-                className="w-full sm:w-auto gap-2 shadow-md shadow-indigo-200 dark:shadow-none"
+                className="w-full sm:w-auto gap-2 text-slate-600 dark:text-slate-400"
               >
-                <span>{isMistakesMode ? "View Mistakes Bank" : "Back to Dashboard"}</span>
-                <ArrowRight className="w-4 h-4" />
+                <span>{isMistakesMode ? "View Mistakes Bank" : "Dashboard"}</span>
               </Button>
             </Link>
           </div>
