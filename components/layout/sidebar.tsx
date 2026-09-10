@@ -17,6 +17,7 @@ import {
   Flame,
   LogIn,
   LogOut,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -53,6 +54,13 @@ const NAVIGATION_ITEMS: NavItem[] = [
       { name: "Dates & Times", href: "/listening/dates-times", icon: CalendarClock },
       { name: "My Mistakes", href: "/listening/mistakes", icon: AlertTriangle, badge: "7" },
     ],
+  },
+  {
+    name: "Grammar Master",
+    href: "/grammar",
+    icon: GraduationCap,
+    badge: "New",
+    badgeVariant: "indigo",
   },
   {
     name: "Progress",

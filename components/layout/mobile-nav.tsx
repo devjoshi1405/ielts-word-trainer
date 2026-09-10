@@ -17,6 +17,7 @@ import {
   Flame,
   Sparkles,
   ChevronRight,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -126,7 +127,7 @@ export function MobileNav() {
                     className={cn(
                       "flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium",
                       pathname === "/dashboard"
-                        ? "bg-indigo-50 text-indigo-700 font-semibold"
+                        ? "bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-950/40 dark:text-indigo-300"
                         : "text-slate-700 hover:bg-slate-100 dark:text-slate-300"
                     )}
                   >
@@ -140,8 +141,8 @@ export function MobileNav() {
                     href="/listening"
                     className={cn(
                       "flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium",
-                      pathname === "/listening"
-                        ? "bg-indigo-50 text-indigo-700 font-semibold"
+                      pathname.startsWith("/listening")
+                        ? "bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-950/40 dark:text-indigo-300"
                         : "text-slate-700 hover:bg-slate-100 dark:text-slate-300"
                     )}
                   >
@@ -150,6 +151,24 @@ export function MobileNav() {
                       <span>Listening Overview</span>
                     </div>
                     <ChevronRight className="w-4 h-4 text-slate-400" />
+                  </Link>
+
+                  <Link
+                    href="/grammar"
+                    className={cn(
+                      "flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium",
+                      pathname.startsWith("/grammar")
+                        ? "bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-950/40 dark:text-indigo-300"
+                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-300"
+                    )}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <GraduationCap className="w-4 h-4 text-indigo-600" />
+                      <span>Grammar Master</span>
+                    </div>
+                    <Badge variant="indigo" className="text-[9px] py-0 px-1.5">
+                      New
+                    </Badge>
                   </Link>
                 </div>
               </div>

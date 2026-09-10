@@ -11,12 +11,15 @@ import {
   TrendingUp,
   Target,
   AlertCircle,
+  GraduationCap,
 } from "lucide-react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ContinuePracticeCard } from "@/components/dashboard/continue-card";
 import { MistakesPreview } from "@/components/dashboard/mistakes-preview";
 import { QuickModulesGrid } from "@/components/dashboard/quick-modules";
 import { useUserProgress } from "@/hooks/use-user-progress";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default function DashboardPage() {
   const { stats, loading, error } = useUserProgress();
@@ -144,6 +147,32 @@ export default function DashboardPage() {
         </div>
 
         <QuickModulesGrid />
+      </div>
+
+      {/* Featured New Module: Grammar Master */}
+      <div className="p-5 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-indigo-500/5 to-transparent border border-indigo-200/80 dark:border-indigo-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-11 h-11 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+            <GraduationCap className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
+                Grammar Master
+              </h3>
+              <Badge variant="indigo">New Module</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Structured curriculum for Parts of Speech, verb conjugations, and Band 7.5+ grammatical range.
+            </p>
+          </div>
+        </div>
+        <Link href="/grammar" className="shrink-0 w-full sm:w-auto">
+          <Button variant="brand" size="sm" className="w-full sm:w-auto gap-2">
+            <span>Explore Grammar Master</span>
+            <ArrowRight className="w-4 h-4" />
+          </Button>
+        </Link>
       </div>
     </div>
   );
