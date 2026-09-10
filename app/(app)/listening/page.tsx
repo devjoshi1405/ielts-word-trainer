@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import Link from "next/link";
 import {
@@ -20,7 +22,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { ModuleCard } from "@/components/listening/module-card";
-import { MOCK_MODULE_SUMMARIES } from "@/data/mock-stats";
+import { useUserProgress } from "@/hooks/use-user-progress";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,7 +44,7 @@ const CATEGORY_META = [
 ];
 
 export default function ListeningHubPage() {
-  const modules = MOCK_MODULE_SUMMARIES;
+  const { modules, loading } = useUserProgress();
   const totalWords = UNIQUE_VOCABULARY_ITEMS.length;
 
   return (

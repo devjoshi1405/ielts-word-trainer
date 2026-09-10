@@ -8,11 +8,11 @@ export function LandingFooter() {
       <div className="container mx-auto px-4 sm:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-10">
           <div className="md:col-span-2 space-y-4">
-            <Link href="/" className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white">
+            <Link href="/" className="flex items-center space-x-3 shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0">
                 <Headphones className="w-5 h-5" />
               </div>
-              <span className="font-bold text-slate-900 dark:text-slate-100 text-lg">
+              <span className="font-bold text-slate-900 dark:text-slate-100 text-lg whitespace-nowrap">
                 IELTS <span className="text-indigo-600">Word Trainer</span>
               </span>
             </Link>

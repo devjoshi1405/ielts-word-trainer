@@ -14,13 +14,13 @@ export default function AuthLayout({
       <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-purple-600/15 blur-[140px] pointer-events-none" />
 
       {/* Top Simple Header */}
-      <header className="p-6 md:px-12 flex items-center justify-between z-10">
-        <Link href="/" className="flex items-center space-x-3 group">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 group-hover:scale-105 transition-transform">
-            <Headphones className="w-5 h-5" />
+      <header className="p-4 sm:p-6 md:px-12 flex items-center justify-between z-10">
+        <Link href="/" className="flex items-center space-x-2.5 sm:space-x-3 group shrink-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30 group-hover:scale-105 transition-transform shrink-0">
+            <Headphones className="w-4.5 h-4.5 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <span className="font-extrabold text-lg tracking-tight text-white flex items-center gap-1.5">
+            <span className="font-extrabold text-base sm:text-lg tracking-tight text-white flex items-center gap-1.5 whitespace-nowrap">
               IELTS Word Trainer
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-semibold border border-indigo-500/30">
                 PRO
@@ -29,9 +29,10 @@ export default function AuthLayout({
           </div>
         </Link>
 
-        <div className="flex items-center space-x-2 text-xs text-slate-400">
+        <div className="flex items-center space-x-1.5 sm:space-x-2 text-xs text-slate-400 shrink-0">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>Supabase Auth & RLS</span>
+          <span className="hidden sm:inline">Supabase Auth & RLS</span>
+          <span className="sm:hidden text-[11px]">Protected</span>
         </div>
       </header>
 

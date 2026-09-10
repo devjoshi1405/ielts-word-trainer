@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Mail,
   Lock,
@@ -12,14 +12,15 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
-  Info,
-  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
-export default function SignupPage() {
+function SignupFormContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const returnTo = searchParams.get("returnTo") || "/dashboard";
+
   const { signUpWithPassword, isConfigured, user, loading: authLoading } = useAuth();
 
   const [fullName, setFullName] = React.useState("");
@@ -30,12 +31,12 @@ export default function SignupPage() {
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
 
-  // If already logged in, redirect to dashboard
+  // If already logged in, redirect
   React.useEffect(() => {
     if (user && !authLoading) {
-      router.push("/dashboard");
+      router.push(returnTo);
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, returnTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +54,7 @@ export default function SignupPage() {
       setSubmitting(true);
       setErrorMessage(null);
 
-      const { error, user: newUser } = await signUpWithPassword(email.trim(), password, {
+      const { error } = await signUpWithPassword(email.trim(), password, {
         fullName: fullName.trim() || undefined,
         targetBand,
       });
@@ -62,11 +63,11 @@ export default function SignupPage() {
         setErrorMessage(error.message || "Failed to create account.");
       } else {
         setSuccessMessage(
-          "Account created successfully! Redirecting to your personalized study dashboard..."
+          "Account created successfully! Redirecting..."
         );
         setTimeout(() => {
-          router.push("/dashboard");
-        }, 1200);
+          router.push(returnTo);
+        }, 800);
       }
     } catch (err: any) {
       setErrorMessage(err?.message || "An unexpected error occurred during sign up.");
@@ -89,18 +90,6 @@ export default function SignupPage() {
           Start your personalized spelling & listening spaced repetition training.
         </p>
       </div>
-
-      {!isConfigured && (
-        <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-800/60 text-amber-200 text-xs flex items-start space-x-2.5">
-          <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold text-amber-300">Supabase Connection Required</p>
-            <p className="text-[11px] text-amber-200/90 leading-relaxed">
-              Add your <code className="bg-amber-950 px-1 py-0.5 rounded text-amber-100">NEXT_PUBLIC_SUPABASE_URL</code> and <code className="bg-amber-950 px-1 py-0.5 rounded text-amber-100">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to <code className="bg-amber-950 px-1 py-0.5 rounded text-amber-100">.env</code> to enable live registration.
-            </p>
-          </div>
-        </div>
-      )}
 
       {errorMessage && (
         <div className="p-3.5 rounded-2xl bg-rose-950/50 border border-rose-800/80 text-rose-200 text-xs flex items-center space-x-2.5">
@@ -204,10 +193,22 @@ export default function SignupPage() {
 
       <div className="text-center text-xs text-slate-400 pt-2">
         Already have an account?{" "}
-        <Link href="/login" className="text-indigo-400 font-semibold hover:text-indigo-300 underline underline-offset-4">
+        <Link
+          href={`/login${returnTo !== "/dashboard" ? `?returnTo=${encodeURIComponent(returnTo)}` : ""}`}
+          className="text-indigo-400 font-semibold hover:text-indigo-300 underline underline-offset-4"
+        >
           Sign in here
         </Link>
       </div>
     </div>
   );
 }
+
+export default function SignupPage() {
+  return (
+    <React.Suspense fallback={<div className="text-center text-slate-400 p-8">Loading...</div>}>
+      <SignupFormContent />
+    </React.Suspense>
+  );
+}
+

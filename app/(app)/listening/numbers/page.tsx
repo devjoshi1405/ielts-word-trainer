@@ -46,6 +46,7 @@ export default function NumbersPracticePage() {
     hasNextQuestion,
   } = useListenExercise({
     initialQuestions,
+    sessionKey: "numbers-currency",
     maxAttempts: 2,
     autoPlayAudio: false,
   });

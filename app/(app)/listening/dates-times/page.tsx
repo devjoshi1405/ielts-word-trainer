@@ -46,6 +46,7 @@ export default function DatesTimesPracticePage() {
     hasNextQuestion,
   } = useListenExercise({
     initialQuestions,
+    sessionKey: "dates-times",
     maxAttempts: 2,
     autoPlayAudio: false,
   });

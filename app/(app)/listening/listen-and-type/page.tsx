@@ -127,6 +127,13 @@ function ListenAndTypeExerciseContent() {
     hasNextQuestion,
   } = useListenExercise({
     initialQuestions,
+    sessionKey: modeParam === "mistakes"
+      ? "mistakes-review-queue"
+      : focusWord
+      ? `focus-${encodeURIComponent(focusWord)}`
+      : categoryParam
+      ? `cat-${categoryParam}`
+      : "listen-and-type-core",
     maxAttempts: 2,
     autoPlayAudio: false,
   });

@@ -50,11 +50,11 @@ export function MobileNav() {
     <>
       {/* Mobile Top Header */}
       <header className="md:hidden sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border/80 bg-background/95 px-4 backdrop-blur">
-        <Link href="/dashboard" className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+        <Link href="/dashboard" className="flex items-center space-x-2.5 shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-sm shrink-0">
             <Headphones className="w-4 h-4" />
           </div>
-          <span className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+          <span className="font-bold text-slate-900 dark:text-slate-100 text-sm whitespace-nowrap">
             IELTS <span className="text-indigo-600">Trainer</span>
           </span>
         </Link>

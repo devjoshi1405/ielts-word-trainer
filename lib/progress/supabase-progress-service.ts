@@ -263,7 +263,150 @@ export class SupabaseProgressService implements IProgressService {
   }
 
   async getModuleSummaries(userId?: string): Promise<PracticeModuleSummary[]> {
-    return MOCK_MODULE_SUMMARIES;
+    const client = getSupabaseBrowserClient();
+    if (!client) {
+      return localProgressService.getModuleSummaries(userId);
+    }
+
+    const uid = await this.getUserId(userId);
+
+    try {
+      const [{ data: attempts, error: attErr }, mistakes] = await Promise.all([
+        client
+          .from("user_attempts")
+          .select("*")
+          .eq("user_id", uid),
+        this.getMistakes(userId),
+      ]);
+
+      if (attErr || !attempts) {
+        return localProgressService.getModuleSummaries(userId);
+      }
+
+      const attemptRows = (attempts as UserAttemptRow[]) || [];
+
+      // 1. Listen & Type Module
+      const latAttempts = attemptRows.filter(
+        (a) => !a.question_id.includes("number") && !a.question_id.includes("date")
+      );
+      const latCorrect = latAttempts.filter((a) => a.is_correct).length;
+      const latAccuracy = latAttempts.length > 0 ? Math.round((latCorrect / latAttempts.length) * 100) : 0;
+      const latCompleted = latAttempts.length;
+
+      // 2. Vocabulary Module
+      const vocabAttempts = attemptRows.filter(
+        (a) =>
+          a.question_id.includes("vocab") ||
+          a.question_id.includes("academic") ||
+          a.question_id.startsWith("q-academic")
+      );
+      const vocabCorrect = vocabAttempts.filter((a) => a.is_correct).length;
+      const vocabAccuracy = vocabAttempts.length > 0 ? Math.round((vocabCorrect / vocabAttempts.length) * 100) : 0;
+      const vocabCompleted = vocabAttempts.length;
+
+      // 3. Numbers Module
+      const numAttempts = attemptRows.filter((a) => a.question_id.includes("number"));
+      const numCorrect = numAttempts.filter((a) => a.is_correct).length;
+      const numAccuracy = numAttempts.length > 0 ? Math.round((numCorrect / numAttempts.length) * 100) : 0;
+      const numCompleted = numAttempts.length;
+
+      // 4. Dates & Times Module
+      const dtAttempts = attemptRows.filter(
+        (a) => a.question_id.includes("date") || a.question_id.includes("time")
+      );
+      const dtCorrect = dtAttempts.filter((a) => a.is_correct).length;
+      const dtAccuracy = dtAttempts.length > 0 ? Math.round((dtCorrect / dtAttempts.length) * 100) : 0;
+      const dtCompleted = dtAttempts.length;
+
+      // 5. Mistakes Module
+      const masteredMistakes = mistakes.filter((m) => (m.masteryNumeric ?? 1) >= 4).length;
+      const totalMistakes = mistakes.length;
+      const mistakesAccuracy =
+        totalMistakes > 0
+          ? Math.round(
+              (mistakes.reduce((acc, m) => acc + (m.correctAttempts || 0), 0) /
+                Math.max(
+                  1,
+                  mistakes.reduce((acc, m) => acc + (m.totalAttempts || 1), 0)
+                )) *
+                100
+            )
+          : 100;
+
+      return [
+        {
+          id: "listen-and-type",
+          title: "Listen & Type",
+          subtitle: "Core Phonetic & Spelling Mastery",
+          description: "Listen carefully and type exactly what you hear. Master challenging IELTS spelling traps.",
+          itemCount: 20,
+          completedCount: Math.min(latCompleted, 20),
+          accuracy: latAttempts.length > 0 ? latAccuracy : 0,
+          estimatedMinutes: 10,
+          difficulty: "intermediate",
+          href: "/listening/listen-and-type",
+          iconName: "Headphones",
+          badge: "Most Popular",
+        },
+        {
+          id: "vocabulary",
+          title: "Vocabulary",
+          subtitle: "High-Frequency Academic Lexicon",
+          description: "Build your IELTS listening vocabulary across environment, education, science, and arts.",
+          itemCount: 25,
+          completedCount: Math.min(vocabCompleted, 25),
+          accuracy: vocabAttempts.length > 0 ? vocabAccuracy : 0,
+          estimatedMinutes: 12,
+          difficulty: "advanced",
+          href: "/listening/vocabulary",
+          iconName: "BookOpen",
+          badge: "Band 7-9",
+        },
+        {
+          id: "numbers",
+          title: "Numbers",
+          subtitle: "Prices, Quantities & Phone Codes",
+          description: "Practice prices, quantities, percentages and measurements under real exam speed.",
+          itemCount: 15,
+          completedCount: Math.min(numCompleted, 15),
+          accuracy: numAttempts.length > 0 ? numAccuracy : 0,
+          estimatedMinutes: 8,
+          difficulty: "foundation",
+          href: "/listening/numbers",
+          iconName: "Binary",
+        },
+        {
+          id: "dates-times",
+          title: "Dates & Times",
+          subtitle: "Schedules, Days & Formats",
+          description: "Improve recognition of dates, months, days of the week, and 12/24-hour time expressions.",
+          itemCount: 15,
+          completedCount: Math.min(dtCompleted, 15),
+          accuracy: dtAttempts.length > 0 ? dtAccuracy : 0,
+          estimatedMinutes: 7,
+          difficulty: "foundation",
+          href: "/listening/dates-times",
+          iconName: "CalendarClock",
+        },
+        {
+          id: "mistakes",
+          title: "My Mistakes",
+          subtitle: "Personal Weakness Elimination",
+          description: "Practice the words and phrases you commonly miss to achieve flawless spelling.",
+          itemCount: Math.max(totalMistakes, 1),
+          completedCount: masteredMistakes,
+          accuracy: totalMistakes > 0 ? mistakesAccuracy : 100,
+          estimatedMinutes: 6,
+          difficulty: "intermediate",
+          href: "/listening/mistakes",
+          iconName: "AlertTriangle",
+          badge: totalMistakes > 0 ? `${totalMistakes} Tracked` : undefined,
+        },
+      ];
+    } catch (e) {
+      console.warn("Supabase getModuleSummaries error:", e);
+      return localProgressService.getModuleSummaries(userId);
+    }
   }
 
   async removeMistake(id: string, userId?: string): Promise<void> {

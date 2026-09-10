@@ -12,6 +12,7 @@ export interface AuthContextType {
   loading: boolean;
   isConfigured: boolean;
   signInWithPassword: (email: string, password: string) => Promise<{ error: AuthError | Error | null }>;
+  signInWithDemo: () => Promise<{ error: null }>;
   signUpWithPassword: (
     email: string,
     password: string,
@@ -22,6 +23,7 @@ export interface AuthContextType {
 }
 
 const AuthContext = React.createContext<AuthContextType | undefined>(undefined);
+const LOCAL_BACKUP_USER_KEY = "ielts_auth_user_backup_v1";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<User | null>(null);
@@ -51,18 +53,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     const client = getSupabaseBrowserClient();
+    
+    // Check backup local user first to prevent flash
+    if (typeof window !== "undefined") {
+      try {
+        const backupUserStr = localStorage.getItem(LOCAL_BACKUP_USER_KEY);
+        if (backupUserStr) {
+          const backup = JSON.parse(backupUserStr);
+          if (backup?.id) {
+            setUser(backup);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
     if (!client) {
       setLoading(false);
       return;
     }
 
-    // Get current initial session
+    // Get current initial session from Supabase
     client.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
       if (session?.user) {
+        setSession(session);
+        setUser(session.user);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(LOCAL_BACKUP_USER_KEY, JSON.stringify(session.user));
+        }
         fetchProfile(session.user.id);
+      } else {
+        // If Supabase session is null and not demo, clear user
+        if (typeof window !== "undefined") {
+          const backupUserStr = localStorage.getItem(LOCAL_BACKUP_USER_KEY);
+          if (backupUserStr) {
+            const backup = JSON.parse(backupUserStr);
+            if (backup?.id === "demo-candidate-uuid") {
+              setUser(backup);
+              setProfile({
+                id: "demo-candidate-uuid",
+                email: "candidate@ielts.trainer",
+                display_name: "IELTS Candidate",
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+            } else {
+              setUser(null);
+            }
+          } else {
+            setUser(null);
+          }
+        }
       }
+      setLoading(false);
+    }).catch(() => {
       setLoading(false);
     });
 
@@ -73,8 +118,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(LOCAL_BACKUP_USER_KEY, JSON.stringify(session.user));
+        }
         fetchProfile(session.user.id);
       } else {
+        if (typeof window !== "undefined") {
+          const backupUserStr = localStorage.getItem(LOCAL_BACKUP_USER_KEY);
+          if (backupUserStr && JSON.parse(backupUserStr)?.id !== "demo-candidate-uuid") {
+            localStorage.removeItem(LOCAL_BACKUP_USER_KEY);
+          }
+        }
         setProfile(null);
       }
       setLoading(false);
@@ -105,6 +159,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(data.user);
       setSession(data.session);
+      if (typeof window !== "undefined" && data.user) {
+        localStorage.setItem(LOCAL_BACKUP_USER_KEY, JSON.stringify(data.user));
+      }
       if (data.user) {
         await fetchProfile(data.user.id);
       }
@@ -112,6 +169,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err: any) {
       return { error: err };
     }
+  };
+
+  const signInWithDemo = async () => {
+    const demoUser = {
+      id: "demo-candidate-uuid",
+      app_metadata: {},
+      user_metadata: { full_name: "IELTS Candidate", target_band: "8.5" },
+      aud: "authenticated",
+      created_at: new Date().toISOString(),
+      email: "candidate@ielts.trainer",
+      phone: "",
+      role: "authenticated",
+      updated_at: new Date().toISOString(),
+    } as unknown as User;
+
+    setUser(demoUser);
+    setProfile({
+      id: "demo-candidate-uuid",
+      email: "candidate@ielts.trainer",
+      display_name: "IELTS Candidate",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+    if (typeof window !== "undefined") {
+      localStorage.setItem(LOCAL_BACKUP_USER_KEY, JSON.stringify(demoUser));
+    }
+    return { error: null };
   };
 
   const signUpWithPassword = async (
@@ -158,6 +242,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(data.user);
       setSession(data.session);
+      if (typeof window !== "undefined" && data.user) {
+        localStorage.setItem(LOCAL_BACKUP_USER_KEY, JSON.stringify(data.user));
+      }
       return { error: null, user: data.user };
     } catch (err: any) {
       return { error: err, user: null };
@@ -167,7 +254,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     const client = getSupabaseBrowserClient();
     if (client) {
-      await client.auth.signOut();
+      try {
+        await client.auth.signOut();
+      } catch {
+        // ignore
+      }
+    }
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(LOCAL_BACKUP_USER_KEY);
     }
     setUser(null);
     setSession(null);
@@ -175,7 +269,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const refreshProfile = async () => {
-    if (user) {
+    if (user && user.id !== "demo-candidate-uuid") {
       await fetchProfile(user.id);
     }
   };
@@ -189,6 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         isConfigured,
         signInWithPassword,
+        signInWithDemo,
         signUpWithPassword,
         signOut,
         refreshProfile,
@@ -206,3 +301,4 @@ export function useAuth() {
   }
   return context;
 }
+

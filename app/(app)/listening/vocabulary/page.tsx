@@ -46,6 +46,7 @@ export default function VocabularyPracticePage() {
     hasNextQuestion,
   } = useListenExercise({
     initialQuestions,
+    sessionKey: "vocabulary-academic",
     maxAttempts: 2,
     autoPlayAudio: false,
   });

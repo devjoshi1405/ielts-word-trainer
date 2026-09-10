@@ -13,6 +13,7 @@ import { classifyMistake } from "@/lib/mistakes/mistake-classifier";
 
 export interface UseListenExerciseOptions {
   initialQuestions: ExerciseQuestion[];
+  sessionKey?: string;
   maxAttempts?: number; // default 2
   onComplete?: (score: { correct: number; total: number; accuracy: number }) => void;
   autoPlayAudio?: boolean;
@@ -20,6 +21,7 @@ export interface UseListenExerciseOptions {
 
 export function useListenExercise({
   initialQuestions,
+  sessionKey,
   maxAttempts = 2,
   onComplete,
   autoPlayAudio = false,
@@ -31,11 +33,58 @@ export function useListenExercise({
   const [attemptsCount, setAttemptsCount] = React.useState<Record<number, number>>({});
   const [attemptHistory, setAttemptHistory] = React.useState<Record<number, UserAttempt[]>>({});
   const [isCompleted, setIsCompleted] = React.useState(false);
+  const [isSessionLoaded, setIsSessionLoaded] = React.useState(false);
 
-  // Update questions if initialQuestions changes
+  const storageKey = sessionKey ? `ielts_exercise_session_${sessionKey}` : null;
+
+  // Restore saved session from storage once initial questions are loaded
   React.useEffect(() => {
-    setQuestions(initialQuestions);
-  }, [initialQuestions]);
+    if (!storageKey || typeof window === "undefined" || initialQuestions.length === 0) {
+      setQuestions(initialQuestions);
+      return;
+    }
+
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed.currentIndex === "number") {
+          const restoredIndex = Math.min(parsed.currentIndex, initialQuestions.length - 1);
+          setCurrentIndex(restoredIndex >= 0 ? restoredIndex : 0);
+          setResults(parsed.results || {});
+          setAttemptsCount(parsed.attemptsCount || {});
+          setAttemptHistory(parsed.attemptHistory || {});
+          setIsCompleted(Boolean(parsed.isCompleted && parsed.currentIndex >= initialQuestions.length - 1));
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to restore exercise session:", e);
+    } finally {
+      setQuestions(initialQuestions);
+      setIsSessionLoaded(true);
+    }
+  }, [storageKey, initialQuestions]);
+
+  // Persist session changes to localStorage
+  React.useEffect(() => {
+    if (!storageKey || typeof window === "undefined" || !isSessionLoaded) return;
+
+    try {
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          currentIndex,
+          results,
+          attemptsCount,
+          attemptHistory,
+          isCompleted,
+          updatedAt: Date.now(),
+        })
+      );
+    } catch (e) {
+      console.warn("Failed to persist exercise session:", e);
+    }
+  }, [storageKey, isSessionLoaded, currentIndex, results, attemptsCount, attemptHistory, isCompleted]);
 
   const currentQuestion = questions[currentIndex] || questions[0];
   const currentResult = results[currentIndex] || null;
@@ -179,13 +228,20 @@ export function useListenExercise({
   }, [currentIndex]);
 
   const restartSession = React.useCallback(() => {
+    if (storageKey && typeof window !== "undefined") {
+      try {
+        localStorage.removeItem(storageKey);
+      } catch (e) {
+        // ignore
+      }
+    }
     setCurrentIndex(0);
     setUserInput("");
     setResults({});
     setAttemptsCount({});
     setAttemptHistory({});
     setIsCompleted(false);
-  }, []);
+  }, [storageKey]);
 
   const score = React.useMemo(() => {
     const list = Object.values(results);
@@ -223,3 +279,4 @@ export function useListenExercise({
     hasNextQuestion: currentIndex < questions.length - 1,
   };
 }
+

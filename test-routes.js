@@ -18,14 +18,22 @@ const routes = [
 
 async function checkRoute(route) {
   return new Promise((resolve) => {
-    http.get(`http://localhost:3000${route}`, (res) => {
+    http.get(`http://127.0.0.1:3000${route}`, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         resolve({ route, status: res.statusCode, length: data.length });
       });
     }).on('error', (err) => {
-      resolve({ route, error: err.message });
+      http.get(`http://192.168.1.5:3000${route}`, (res2) => {
+        let data2 = '';
+        res2.on('data', chunk => data2 += chunk);
+        res2.on('end', () => {
+          resolve({ route, status: res2.statusCode, length: data2.length });
+        });
+      }).on('error', (err2) => {
+        resolve({ route, error: err2.message });
+      });
     });
   });
 }
